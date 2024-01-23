@@ -1,9 +1,11 @@
 import sys
 import pygame
 import random
+import pygame_gui
+import sqlite3
 
 pygame.init()
-size = width, height = 510, 480
+size = width, height = 580, 480
 screen = pygame.display.set_mode(size)
 pygame.display.set_caption('2048')
 clock = pygame.time.Clock()
@@ -63,15 +65,36 @@ def draw_screensaver():
                         name_user += event.unicode
                 elif event.key == pygame.K_BACKSPACE:
                     name_user = name_user[:-1]
-                elif event.key == pygame.K_RETURN:
+                elif event.key == pygame.K_SPACE:
                     global username
-                    if len(name_user) > 2:
+                    con = sqlite3.connect("users score.db")
+                    cur = con.cursor()
+                    temp_name = cur.execute(f"""SELECT name FROM score WHERE name = '{name_user}'""").fetchone()
+                    if temp_name:
+                        print('Пользователь с таким именем уже есть. \nЕсли вы сохраняли имя ранее, войдите в игру,'
+                              ' нажав клавишу Enter. \nИначе придумайте новое имя')
+                    else:
+                        cur.execute(f"""INSERT INTO score(name) VALUES('{name_user}')""")
+                        con.commit()
                         username = name_user
-                    flag = True
-                    print(f'Сейчас играет пользователь {username}')
-                    pygame.mixer.music.stop()
+                        flag = True
+                        print(f'Сейчас играет пользователь {username}')
+                        pygame.mixer.music.stop()
+                elif event.key == pygame.K_RETURN:  # если нажали Enter, то проверяем если ли такое имя и начинаем игру
+                    con = sqlite3.connect("users score.db")
+                    cur = con.cursor()
+                    res_name = cur.execute(f"""SELECT name FROM score WHERE name = '{name_user}'""").fetchone()
+                    if not res_name:
+                        # если такого имени нет, то должно появиться окошко с уведомлением об ошибке
+                        print('Такое имя не найдено:( \nПопробуйте ввести имя еще раз или сохраните имя,'
+                              ' нажав клавишу ПРОБЕЛ')
+                    else: # если такое имя есть, то начинается игра
+                        username = name_user
+                        flag = True
+                        print(f'Сейчас играет пользователь {username}')
+                        pygame.mixer.music.stop()
 
-        screen.blit(pygame.transform.scale(img, (510, 550)), (0, -40))
+        screen.blit(pygame.transform.scale(img, (580, 550)), (0, -40))
         font = pygame.font.SysFont(None, 50)
         text_name = font.render(name_user, True, (253, 245, 230))
         screen.blit(text_name, (180, 280))
@@ -194,6 +217,22 @@ def draw_board():
     max_score_text = font.render(f'Максимальный счёт: {max_score}', True, (119, 110, 101))
     screen.blit(score_text, (20, 20))
     screen.blit(max_score_text, (20, 60))
+
+    con = sqlite3.connect("users score.db")
+    cur = con.cursor()
+    result = cur.execute(f"""SELECT score FROM score""").fetchall()
+    result = [el[0] for el in result if el[0] != None]
+    result.sort(reverse=True)
+    result = result[:3]
+    delta_y = 30
+    for elem in result:
+        name = cur.execute(f"""SELECT name FROM score WHERE score = '{elem}'""").fetchall()
+        if len(name) > 1:
+            pass
+        else:
+            res_text = font.render(f'{name[0][0]}: {elem}', True, (119, 110, 101))
+            screen.blit(res_text, (400, 100 + delta_y))
+            delta_y *= 2
 
 
 # рисуем поле с пустыми клеточками
