@@ -1,11 +1,11 @@
 import sys
+import os
 import pygame
 import random
-import pygame_gui
 import sqlite3
 
 pygame.init()
-size = width, height = 580, 480
+size = width, height = 620, 480
 screen = pygame.display.set_mode(size)
 pygame.display.set_caption('2048')
 clock = pygame.time.Clock()
@@ -38,20 +38,17 @@ create_new_value = True
 init_count = 0
 moving = 0
 score = 0
-file = open('statistics score', 'r')
-init_high = int(file.readline())
-file.close()
-max_score = init_high
+max_score = 0
 username = None
-manager = pygame_gui.UIManager((580, 480))
 
 
 # заставка игры
 def draw_screensaver():
+    global username, max_score
     img = pygame.image.load('photo_2048.jpg')
-    pygame.mixer.music.load('data\мелодия заставки.mp3')
+    pygame.mixer.music.load(os.path.join('data', 'music_one.mp3'))
     pygame.mixer.music.play(-1)
-    name_user = 'введи имя'
+    name_user = 'введите имя'
     flag = False
     while not flag:
         for event in pygame.event.get():
@@ -60,55 +57,34 @@ def draw_screensaver():
                 sys.exit(0)
             elif event.type == pygame.KEYDOWN:
                 if event.unicode.isalpha():
-                    if name_user == 'введи имя':
+                    if name_user == 'введите имя':
                         name_user = event.unicode
                     else:
                         name_user += event.unicode
                 elif event.key == pygame.K_BACKSPACE:
                     name_user = name_user[:-1]
-                elif event.key == pygame.K_SPACE:
-                    global username
-                    con = sqlite3.connect("users score.db")
+                elif event.key == pygame.K_RETURN:  # проверяем, сохранено ли такое имя и начинаем игру
+                    con = sqlite3.connect("users_score.db")
                     cur = con.cursor()
-                    temp_name = cur.execute(f"""SELECT name FROM score WHERE name = '{name_user}'""").fetchone()
-                    if temp_name:
-                        print('Пользователь с таким именем уже есть. \nЕсли вы сохраняли имя ранее, войдите в игру,'
-                              ' нажав клавишу Enter. \nИначе придумайте новое имя')
+                    res_name = cur.execute(f"""SELECT name, score FROM score WHERE name = '{name_user}'""").fetchone()
 
-                        conf_fialog = pygame_gui.windows.UIConfirmationDialog(
-                            rect=pygame.Rect((250, 250), (300, 200)),
-                            manager=manager,
-                            window_title='Уведомление об ошибке',
-                            action_long_desc='Пользователь с таким именем уже есть.',
-                            action_short_name='OK',
-                            blocking=True
-                        )
-
-                    else:
+                    if not res_name:  # добавление имени в базу данных
                         cur.execute(f"""INSERT INTO score(name) VALUES('{name_user}')""")
                         con.commit()
                         username = name_user
                         flag = True
-                        print(f'Сейчас играет пользователь {username}')
                         pygame.mixer.music.stop()
-                elif event.key == pygame.K_RETURN:  # если нажали Enter, то проверяем если ли такое имя и начинаем игру
-                    con = sqlite3.connect("users score.db")
-                    cur = con.cursor()
-                    res_name = cur.execute(f"""SELECT name FROM score WHERE name = '{name_user}'""").fetchone()
-                    if not res_name:
-                        # если такого имени нет, то должно появиться окошко с уведомлением об ошибке
-                        print('Такое имя не найдено:( \nПопробуйте ввести имя еще раз или сохраните имя,'
-                              ' нажав клавишу ПРОБЕЛ')
-                    else: # если такое имя есть, то начинается игра
+                    else:  # переход к игре
                         username = name_user
+                        if res_name[1]:
+                            max_score = res_name[1]
                         flag = True
-                        print(f'Сейчас играет пользователь {username}')
                         pygame.mixer.music.stop()
 
-        screen.blit(pygame.transform.scale(img, (580, 550)), (0, -40))
+        screen.blit(pygame.transform.scale(img, (620, 570)), (0, -45))
         font = pygame.font.SysFont(None, 50)
         text_name = font.render(name_user, True, (253, 245, 230))
-        screen.blit(text_name, (180, 280))
+        screen.blit(text_name, (210, 280))
         pygame.display.update()
 
 
@@ -223,27 +199,27 @@ def new_cells(board):
 
 # рисуем полотно для клетчатого поля
 def draw_board():
+    global username
     pygame.draw.rect(screen, colors['bg'], [10, 100, 370, 370])
     score_text = font.render(f'Счёт: {score}', True, (119, 110, 101))
     max_score_text = font.render(f'Максимальный счёт: {max_score}', True, (119, 110, 101))
+    name_text = font.render(f'User: {username}', True, (119, 110, 101))
+    best_text = font.render('Топ игроков', True, (97, 90, 81))
     screen.blit(score_text, (20, 20))
     screen.blit(max_score_text, (20, 60))
+    screen.blit(name_text, (400, 440))
+    screen.blit(best_text, (400, 40))
 
-    con = sqlite3.connect("users score.db")
+    con = sqlite3.connect("users_score.db")
     cur = con.cursor()
-    result = cur.execute(f"""SELECT score FROM score""").fetchall()
-    result = [el[0] for el in result if el[0] != None]
-    result.sort(reverse=True)
-    result = result[:3]
-    delta_y = 30
+    result = cur.execute(f"""SELECT name, score FROM score WHERE score > 0""").fetchall()
+    result.sort(key=lambda x: -x[1])
+    result = result[:10]  # лучшие 10 игроков
+    delta_y = 35
     for elem in result:
-        name = cur.execute(f"""SELECT name FROM score WHERE score = '{elem}'""").fetchall()
-        if len(name) > 1:
-            pass
-        else:
-            res_text = font.render(f'{name[0][0]}: {elem}', True, (119, 110, 101))
-            screen.blit(res_text, (400, 100 + delta_y))
-            delta_y *= 2
+        res_text = font.render(f'{elem[0]}:  {elem[1]}', True, (119, 110, 101))
+        screen.blit(res_text, (400, 65 + delta_y))
+        delta_y += 30
 
 
 # рисуем поле с пустыми клеточками
@@ -284,11 +260,23 @@ def check_board(board):
 
 
 run = True
-pygame.mixer.music.load('data\основная мелодия.mp3')
+pygame.mixer.music.load(os.path.join('data', 'music_two.mp3'))
 pygame.mixer.music.play(-1)
 while run:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
+            if username and score > max_score:
+                con = sqlite3.connect("users_score.db")
+                cur = con.cursor()
+                cur.execute(f"""UPDATE score SET score = {score} WHERE name = '{username}'""")
+                con.commit()
+                con.close()
+            else:
+                con = sqlite3.connect("users_score.db")
+                cur = con.cursor()
+                cur.execute(f"""UPDATE score SET score = {max_score} WHERE name = '{username}'""")
+                con.commit()
+                con.close()
             print('Игра окончена')
             run = False
         if event.type == pygame.KEYDOWN:
@@ -303,6 +291,18 @@ while run:
 
             if game_over_one and game_over_two:
                 if event.key == pygame.K_RETURN:
+                    if username and score > max_score:
+                        con = sqlite3.connect("users_score.db")
+                        cur = con.cursor()
+                        cur.execute(f"""UPDATE score SET score = {score} WHERE name = '{username}'""")
+                        con.commit()
+                        con.close()
+                    else:
+                        con = sqlite3.connect("users_score.db")
+                        cur = con.cursor()
+                        cur.execute(f"""UPDATE score SET score = {max_score} WHERE name = '{username}'""")
+                        con.commit()
+                        con.close()
                     board_cells = [[0 for _ in range(4)] for _ in range(4)]
                     create_new_value = True
                     init_count = 0
@@ -329,11 +329,6 @@ while run:
 
     if game_over_one and game_over_two:
         draw_over()
-        if max_score > init_high:
-            file = open('statistics score', 'w')
-            file.write(f'{max_score}')
-            file.close()
-            init_high = max_score
 
     if score > max_score:
         max_score = score
