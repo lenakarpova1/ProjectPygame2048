@@ -43,6 +43,7 @@ init_high = int(file.readline())
 file.close()
 max_score = init_high
 username = None
+manager = pygame_gui.UIManager((580, 480))
 
 
 # заставка игры
@@ -73,6 +74,16 @@ def draw_screensaver():
                     if temp_name:
                         print('Пользователь с таким именем уже есть. \nЕсли вы сохраняли имя ранее, войдите в игру,'
                               ' нажав клавишу Enter. \nИначе придумайте новое имя')
+
+                        conf_fialog = pygame_gui.windows.UIConfirmationDialog(
+                            rect=pygame.Rect((250, 250), (300, 200)),
+                            manager=manager,
+                            window_title='Уведомление об ошибке',
+                            action_long_desc='Пользователь с таким именем уже есть.',
+                            action_short_name='OK',
+                            blocking=True
+                        )
+
                     else:
                         cur.execute(f"""INSERT INTO score(name) VALUES('{name_user}')""")
                         con.commit()
